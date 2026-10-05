@@ -31,5 +31,17 @@ if (!/from ['"]\.\/anticheat\/sentinel\.js['"]/.test(entry)) {
   console.error('✖ src/main.js must import ./anticheat/sentinel.js');
 }
 
+// If a production build exists, it must not carry the dev test handle.
+import { existsSync } from 'node:fs';
+const dist = new URL('../dist/assets', import.meta.url).pathname;
+if (existsSync(dist)) {
+  for (const name of readdirSync(dist)) {
+    if (name.endsWith('.js') && readFileSync(join(dist, name), 'utf8').includes('__flick')) {
+      failed = true;
+      console.error(`✖ dist/assets/${name} leaks the dev test handle`);
+    }
+  }
+}
+
 if (failed) process.exit(1);
 console.log(`✔ ${files.length} modules parsed, sentinel wired.`);
