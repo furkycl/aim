@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#07080c" />
+    <meta name="description" content="FLICK — tarayıcıda çalışan 3D aim trainer. CS tarzı hassasiyet ayarları, dört antrenman modu ve yerleşik hile koruması." />
+    <title>FLICK — Aim Trainer</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%2307080c' stroke='%2300f0ff' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%2300f0ff'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <!-- Crosshair + HUD (visible during a run) -->
+    <div id="hud" class="hidden" aria-hidden="true">
+      <div id="crosshair"></div>
+      <div id="hitmarker"></div>
+      <div class="hud-top">
+        <div class="hud-stat"><span class="hud-label">SÜRE</span><span id="hud-time">60.0</span></div>
+        <div class="hud-stat hud-center"><span class="hud-label">SKOR</span><span id="hud-score">0</span></div>
+        <div class="hud-stat"><span class="hud-label">İSABET</span><span id="hud-acc">100%</span></div>
+      </div>
+      <div class="hud-bottom">
+        <div id="hud-streak"></div>
+        <div id="hud-mode"></div>
+      </div>
+      <div id="hud-countdown"></div>
+      <div id="damage-vignette"></div>
+    </div>
+
+    <!-- Main menu -->
+    <div id="menu" class="overlay">
+      <div class="menu-inner">
+        <header class="brand">
+          <div class="brand-mark"><span></span></div>
+          <h1>FLICK</h1>
+          <p class="tagline">Tarayıcıda 3D aim antrenmanı — hassasiyetin sana, geri kalanı bize.</p>
+        </header>
+
+        <section class="modes" id="mode-list"></section>
+
+        <div class="menu-actions">
+          <button id="btn-play" class="btn btn-primary">OYNA <kbd>Space</kbd></button>
+          <button id="btn-settings" class="btn">AYARLAR</button>
+          <button id="btn-board" class="btn">SKOR TABLOSU</button>
+        </div>
+
+        <footer class="menu-foot">
+          <span id="sentinel-badge" class="badge badge-ok">SENTINEL · aktif</span>
+          <span class="muted">Tıkla → imleç kilitlenir · ESC → menü</span>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div id="settings" class="overlay hidden">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>AYARLAR</h2>
+          <button class="btn btn-ghost" data-close="settings">KAPAT</button>
+        </div>
+        <div class="panel-body">
+          <div class="tabs">
+            <button class="tab active" data-tab="mouse">FARE</button>
+            <button class="tab" data-tab="crosshair">CROSSHAIR</button>
+            <button class="tab" data-tab="video">GÖRÜNTÜ</button>
+            <button class="tab" data-tab="audio">SES</button>
+          </div>
+
+          <div class="tab-page" data-page="mouse">
+            <div class="row">
+              <label>Hassasiyet <small>(CS2 ölçeği)</small></label>
+              <input type="number" id="s-sens" min="0.05" max="10" step="0.01" />
+              <input type="range" id="s-sens-r" min="0.05" max="5" step="0.01" />
+            </div>
+            <div class="row">
+              <label>Fare DPI</label>
+              <input type="number" id="s-dpi" min="100" max="32000" step="50" />
+            </div>
+            <div class="row readout">
+              <span>eDPI <b id="s-edpi">—</b></span>
+              <span>cm / 360° <b id="s-cm360">—</b></span>
+              <span>in / 360° <b id="s-in360">—</b></span>
+            </div>
+            <div class="row">
+              <label>Yakınlaştırma hassasiyeti</label>
+              <input type="number" id="s-zoomsens" min="0.1" max="2" step="0.05" />
+            </div>
+            <div class="row">
+              <label>Dikey tersle</label>
+              <input type="checkbox" id="s-invert" />
+            </div>
+            <div class="row">
+              <label>Ham giriş <small>(işletim sistemi ivmesini yok say)</small></label>
+              <input type="checkbox" id="s-raw" checked />
+            </div>
+            <p class="hint">Başka oyunlardan taşımak için: Valorant sens × 3.18 ≈ CS2 sens · Apex / Overwatch ölçeği de desteklenir, sadece CS2 değerini gir.</p>
+          </div>
+
+          <div class="tab-page hidden" data-page="crosshair">
+            <div class="xh-preview"><div id="xh-preview-el"></div></div>
+            <div class="row"><label>Stil</label>
+              <select id="xh-style">
+                <option value="cross">Klasik (+)</option>
+                <option value="dot">Nokta</option>
+                <option value="crossdot">Artı + Nokta</option>
+                <option value="circle">Çember</option>
+                <option value="tee">T</option>
+              </select>
+            </div>
+            <div class="row"><label>Boyut</label><input type="range" id="xh-size" min="1" max="30" step="1" /></div>
+            <div class="row"><label>Kalınlık</label><input type="range" id="xh-thick" min="1" max="8" step="0.5" /></div>
+            <div class="row"><label>Boşluk</label><input type="range" id="xh-gap" min="0" max="20" step="1" /></div>
+            <div class="row"><label>Renk</label><input type="color" id="xh-color" /></div>
+            <div class="row"><label>Dış hat</label><input type="checkbox" id="xh-outline" /></div>
+            <div class="row"><label>Opaklık</label><input type="range" id="xh-alpha" min="0.2" max="1" step="0.05" /></div>
+            <div class="presets">
+              <button class="chip" data-xh="0.5;3;1;cyan">Minimal</button>
+              <button class="chip" data-xh="cross;6;2;4;#00ff6a">Yeşil klasik</button>
+              <button class="chip" data-xh="dot;3;3;0;#ff3b6b">Kırmızı nokta</button>
+              <button class="chip" data-xh="crossdot;8;2;6;#ffe600">Sarı +•</button>
+            </div>
+          </div>
+
+          <div class="tab-page hidden" data-page="video">
+            <div class="row"><label>FOV <small>(yatay, 4:3 referans)</small></label><input type="range" id="v-fov" min="60" max="120" step="1" /><b id="v-fov-val"></b></div>
+            <div class="row"><label>Bloom</label><input type="checkbox" id="v-bloom" checked /></div>
+            <div class="row"><label>Parçacık efektleri</label><input type="checkbox" id="v-particles" checked /></div>
+            <div class="row"><label>Kamera sarsıntısı</label><input type="checkbox" id="v-shake" checked /></div>
+            <div class="row"><label>Render ölçeği</label>
+              <select id="v-scale">
+                <option value="0.75">0.75× (performans)</option>
+                <option value="1" selected>1× (yerel)</option>
+                <option value="1.5">1.5× (kalite)</option>
+              </select>
+            </div>
+            <div class="row"><label>FPS göstergesi</label><input type="checkbox" id="v-fps" /></div>
+          </div>
+
+          <div class="tab-page hidden" data-page="audio">
+            <div class="row"><label>Ana ses</label><input type="range" id="a-master" min="0" max="1" step="0.05" /></div>
+            <div class="row"><label>Efektler</label><input type="range" id="a-sfx" min="0" max="1" step="0.05" /></div>
+            <div class="row"><label>Vuruş sesi</label><input type="checkbox" id="a-hit" checked /></div>
+            <div class="row"><label>Arka plan ambiyansı</label><input type="checkbox" id="a-amb" checked /></div>
+          </div>
+        </div>
+        <div class="panel-foot">
+          <button id="btn-reset-settings" class="btn btn-ghost">VARSAYILANA DÖN</button>
+          <span class="muted">Ayarlar otomatik kaydedilir.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="board" class="overlay hidden">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>SKOR TABLOSU</h2>
+          <button class="btn btn-ghost" data-close="board">KAPAT</button>
+        </div>
+        <div class="panel-body">
+          <div class="tabs" id="board-tabs"></div>
+          <table class="board-table">
+            <thead><tr><th>#</th><th>Skor</th><th>İsabet</th><th>Tepki</th><th>Tarih</th><th>Doğrulama</th></tr></thead>
+            <tbody id="board-body"></tbody>
+          </table>
+          <p class="hint">Skorlar bu cihazda saklanır ve Sentinel tarafından imzalanır. İmzası bozulan kayıtlar <b>geçersiz</b> görünür.</p>
+        </div>
+        <div class="panel-foot">
+          <button id="btn-clear-board" class="btn btn-ghost">TEMİZLE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="overlay hidden">
+      <div class="panel results-panel">
+        <div class="panel-head">
+          <h2 id="res-title">SONUÇ</h2>
+          <span id="res-verified" class="badge"></span>
+        </div>
+        <div class="results-grade"><span id="res-grade">S</span></div>
+        <div class="results-grid">
+          <div><span class="hud-label">SKOR</span><b id="res-score">0</b></div>
+          <div><span class="hud-label">İSABET</span><b id="res-acc">0%</b></div>
+          <div><span class="hud-label">VURUŞ / ISKA</span><b id="res-hits">0 / 0</b></div>
+          <div><span class="hud-label">ORT. TEPKİ</span><b id="res-react">— ms</b></div>
+          <div><span class="hud-label">EN İYİ SERİ</span><b id="res-streak">0</b></div>
+          <div><span class="hud-label">KPS</span><b id="res-kps">0.0</b></div>
+        </div>
+        <div id="res-best" class="hint"></div>
+        <div class="panel-foot">
+          <button id="btn-retry" class="btn btn-primary">TEKRAR <kbd>R</kbd></button>
+          <button id="btn-menu" class="btn">MENÜ <kbd>Esc</kbd></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pause -->
+    <div id="pause" class="overlay hidden">
+      <div class="pause-inner">
+        <h2>DURAKLATILDI</h2>
+        <p>Devam etmek için tıkla · Menü için <kbd>Esc</kbd></p>
+        <button id="btn-pause-menu" class="btn btn-ghost">MENÜYE DÖN</button>
+      </div>
+    </div>
+
+    <!-- Sentinel verdict -->
+    <div id="sentinel" class="overlay hidden">
+      <div class="panel sentinel-panel">
+        <div class="panel-head"><h2>SENTINEL</h2></div>
+        <p id="sentinel-msg"></p>
+        <ul id="sentinel-list"></ul>
+        <div class="panel-foot">
+          <button id="btn-sentinel-ok" class="btn">ANLADIM</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="fps" class="hidden"></div>
+    <div id="toast"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
