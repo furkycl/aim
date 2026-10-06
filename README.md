@@ -14,7 +14,34 @@ Tarayıcıda çalışan, Three.js ile yazılmış, CS tarzı hassasiyet ayarlar�
 | **PRECISION** | Küçük hedefler zamanla büzüşür; küçükken vurmak daha çok puan. |
 | **SPIDER** | Merkez → rastgele → merkez. Flick + geri dönüş disiplini. |
 
-Her koşu 60 saniye. Seri (streak) çarpanı, S–F notu, mod başına en iyi skor.
+Her koşu 60 saniye. Seri (streak) çarpanı, S–F notu, mod × hedef × silah başına en iyi skor.
+
+## Silahlar
+
+Tüm tasarımlar ve sesler orijinaldir; hiçbir dış dosya yüklenmez.
+
+| Silah | Sınıf | Atış | Şarjör | Not |
+| --- | --- | --- | --- | --- |
+| **P9 COMPACT** | Tabanca | Yarı otomatik | 12 | Hızlı, düşük tepme |
+| **VK-9** | SMG | Otomatik, 900 rpm | 30 | Yakında ölümcül |
+| **AR-7** | Karabina | Otomatik, 600 rpm | 30 | "T" spray deseni: 8 dik, sağa, sola |
+| **SCOUT-M** | Keskin nişancı | Sürgülü | 5 | Sağ tık 4× dürbün |
+| **HAMMER-12** | Pompalı | Pompalı | 7 | 9 saçma |
+
+- Geri tepme kameraya **ofset** olarak biner; nişan ışını kamerayı kullandığı için spray kontrolü gerçektir.
+- Dinamik yayılma (crosshair açılır), **R** ile yeniden doldurma, sürgü/pompa döngüsü, boş tetik sesi.
+- İlk şahıs viewmodel: sway, nefes, kick, ADS, equip, şarjör değişimi, bolt/pompa, slide blowback, namlu alevi, fiziksel kovanlar.
+- Sesler WebAudio ile sentezlenir: crack + bark + thump + convolver kuyruğu; mekanik sesler; zırh "dink", gövde "thud", metal kıvılcım; patlama; konumsal helikopter pervanesi.
+
+## Hedefler
+
+| Hedef | HP | Bölgeler |
+| --- | --- | --- |
+| **KÜRE** | 1 (tracking'te 120) | — |
+| **OPERATÖR** | 100 | kafa = silahın kafa çarpanı, gövde 1×, uzuv 0.6× |
+| **HELİKOPTER** | 300 | motor 1.5×, kokpit 1.3×, gövde 1×, kuyruk 0.7× |
+
+Operatörler yerde durur/yürür, bazıları çömelir, vurulunca düşer. Helikopterler yatarak uçar, hasar aldıkça duman çıkarır, patlayıp düşer.
 
 ## Ayarlar
 
@@ -37,9 +64,12 @@ Oyun tamamen istemci tarafında çalıştığı için amaç, **tarayıcı konsol
    - insan dışı tepki süreleri (*inhuman-reaction*),
    - metronomik tıklama kadansı ve imkânsız tıklama hızı (*autoclicker*, *click-rate*),
    - kuantize / eksen kilitli / metronomik hareket,
-   - kusursuz tracking oranı.
+   - kusursuz tracking oranı,
+   - **triggerbot**: crosshair hedefe girdikten sonra atışa kadar geçen süre (medyan < 35 ms),
+   - **head-lock**: kafa vuruş oranı > %92,
+   - **recoil-script**: ardışık otomatik atışlar arasındaki fare girdisi geri tepmeyi aşırı kesin iptal ediyorsa.
 3. **Ortam bütünlüğü** — `requestAnimationFrame`, `performance.now`, `Date.now`, `Math.random`, `addEventListener`, `dispatchEvent`, `MouseEvent`, `requestPointerLock`, `Function.prototype.toString`, `Object.defineProperty` ve kritik getter'lar, temiz bir `about:blank` realm'inin `toString`'i ile doğrulanır. DOM'a sonradan eklenen `script`/`iframe`, yabancı kaynaklı scriptler, userscript yöneticisi izleri (`GM_*`, `unsafeWindow`), `navigator.webdriver`, devtools (`debugger` duraklaması + pencere farkı) ve saat sapması izlenir. `__THREE_DEVTOOLS__` sabitlenir; sahne grafiği dışarıdan okunamaz.
-4. **Koşu defteri** — duvar saati süresi, kare temposu ve vuruş sayacı oyunun kendi sayaçlarıyla çapraz kontrol edilir (speedhack / yapay rAF sürüşü).
+4. **Koşu defteri** — oyun saati, duvar saati ve donma süresi, kare temposu, vuruş/öldürme sayaçları oyunun kendi sayaçlarıyla çapraz kontrol edilir (speedhack / yapay rAF sürüşü).
 5. **İmzalı kayıtlar** — her skor, kurulum başına üretilen gizli anahtarla HMAC-SHA256 (SubtleCrypto) imzalanır. `localStorage`'daki kaydı elle değiştiren biri imzayı bozar; kayıt "İMZA BOZUK" olarak işaretlenir ve en iyi skor sayılmaz.
 
 Sonuç: **DOĞRULANDI** (temiz), **DOĞRULANAMADI** (uyarı var, kaydedilir ama şüpheli) veya **GEÇERSİZ** (kaydedilmez).
@@ -67,11 +97,11 @@ Geliştirme modunda `window.__flick` test tutamacı açıktır; üretim derlemes
 ```
 src/
   anticheat/   preload (orijinal API yakalama), sentinel, forensics, integrity, signer
-  audio/       WebAudio ile sentezlenen efektler
-  config/      ayar deposu (CS2 ölçeği), mod tanımları
-  core/        giriş (pointer lock), hedef yöneticisi, oyun döngüsü
+  audio/       sfx (UI/ambiyans) + guns (silah, çarpma, helikopter, patlama)
+  config/      ayar deposu (CS2 ölçeği), modlar, silahlar, hedef stilleri
+  core/        giriş (pointer lock), silah durum makinesi, hedef yöneticisi, oyun döngüsü
   data/        imzalı yerel skor tablosu
-  render/      sahne/arena, post-processing, parçacık efektleri
+  render/      sahne/arena, post-processing, efektler, viewmodel + silah meshleri, targets/ (küre, operatör, helikopter)
   ui/          menü, HUD, ayarlar paneli, crosshair çizici
 ```
 
