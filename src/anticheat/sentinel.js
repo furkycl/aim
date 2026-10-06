@@ -88,20 +88,26 @@ export class Sentinel {
     this.#forensics.click(pristine.perfNow(), yaw, pitch);
   }
 
-  recordHit({ reaction, aimErr, angR }) {
+  // Per damaging hit (a pellet/bullet that connected).
+  recordHit({ reaction, aimErr, angR, dwell, zone }) {
     if (!this.#forensics) return;
-    this.#forensics.hit(pristine.perfNow(), reaction, aimErr, angR, this.#settings.degPerCount);
-    this.#run.hits++;
+    this.#forensics.hit(pristine.perfNow(), reaction, aimErr, angR, this.#settings.degPerCount, dwell, zone);
   }
+
+  // Per shot that connected with anything (ledger cross-check with game stats.hits).
+  recordShotHit() { if (this.#run) this.#run.hits++; }
+  recordKill() { if (this.#run) this.#run.kills++; }
+
+  recordSpray(sample) { if (this.#forensics && !this.#paused) this.#forensics.spray(sample); }
 
   recordMiss() { if (this.#run) this.#run.misses++; }
 
   recordTrack(on, dt) { if (this.#forensics) this.#forensics.track(on, dt); }
 
   // ---- run lifecycle ----------------------------------------------------
-  beginRun({ runId, mode, seed, kind }) {
-    this.#forensics = new Forensics({ id: mode, kind });
-    this.#run = { runId, mode, seed, nonce: this.#signer.nonce(), startP: pristine.perfNow(), startD: pristine.dateNow(), pausedMs: 0, pauseAt: 0, hits: 0, misses: 0, probes: 0 };
+  beginRun({ runId, mode, seed, kind, style = 'sphere', weapon = null }) {
+    this.#forensics = new Forensics({ id: mode, kind, style, weapon });
+    this.#run = { runId, mode, seed, style, weapon, nonce: this.#signer.nonce(), startP: pristine.perfNow(), startD: pristine.dateNow(), pausedMs: 0, pauseAt: 0, hits: 0, kills: 0, misses: 0, probes: 0, played: 0, stalled: 0 };
     this.#paused = false;
     this.#fatalAnnounced = false;
     this.#frameTimes.length = 0;
@@ -129,6 +135,13 @@ export class Sentinel {
     if (!this.#run || this.#paused) return;
     this.#frameTimes.push(dt);
     if (this.#frameTimes.length > 600) this.#frameTimes.shift();
+  }
+
+  // Game clock bookkeeping, mirrored from the game: played seconds and stalled seconds.
+  tickRun(played, stalled) {
+    if (!this.#run || this.#paused) return;
+    this.#run.played += played;
+    this.#run.stalled += stalled;
   }
 
   #probe() {
@@ -168,19 +181,21 @@ export class Sentinel {
 
     if (!run) return { status: 'invalid', severity: 'fatal', reasons: ['no-run'], message: '' };
 
-    // Wall-clock duration must match the run duration (speedhack / frame injection).
-    const elapsed = (pristine.perfNow() - run.startP - run.pausedMs) / 1000;
+    // Wall-clock vs game clock. A run can never finish *faster* than real time
+    // (speedhack / injected frames); slower means stalls, which the game clock
+    // already ignores — too many of those make the run unverifiable.
+    const wall = (pristine.perfNow() - run.startP - run.pausedMs) / 1000;
     const expected = stats.duration + 3; // + countdown
-    if (Math.abs(elapsed - expected) > Math.max(2.5, expected * 0.12)) {
-      reasons.push(`timing: beklenen ${expected.toFixed(0)}s, ölçülen ${elapsed.toFixed(1)}s`); bump('fatal');
-    }
+    if (wall < expected - 2.5) { reasons.push(`timing: ${expected.toFixed(0)}s koşu ${wall.toFixed(1)}s duvar saatinde bitti`); bump('fatal'); }
+    if (Math.abs(run.played - stats.duration) > 2.5) { reasons.push(`timing: oyun saati ${run.played.toFixed(1)}s ≠ ${stats.duration}s`); bump('fatal'); }
+    if (run.stalled > stats.duration * 0.35) { reasons.push(`frame-stalls: ${run.stalled.toFixed(1)}s donma`); bump('warn'); }
     // Frame pacing: a frame budget of <2 ms sustained means rAF is being driven artificially.
     if (this.#frameTimes.length > 200) {
       const tiny = this.#frameTimes.filter((d) => d < 0.002).length / this.#frameTimes.length;
       if (tiny > 0.5) { reasons.push('frame-pacing: yapay rAF sürüşü'); bump('fatal'); }
     }
     // Hit bookkeeping must agree with the game's own counters.
-    if (run.hits !== stats.hits && stats.mode !== 'tracking') { reasons.push('ledger: vuruş sayacı uyuşmuyor'); bump('fatal'); }
+    if (run.hits !== stats.hits || run.kills !== stats.kills) { reasons.push('ledger: vuruş sayacı uyuşmuyor'); bump('fatal'); }
 
     for (const f of this.#forensics.analyse()) { reasons.push(`${f.code}: ${f.detail}`); bump(f.severity); }
     for (const f of this.#integrity.findings) { reasons.push(`${f.code}: ${f.detail}`); bump(f.severity); }
