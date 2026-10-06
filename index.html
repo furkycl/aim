@@ -15,7 +15,11 @@
     <!-- Crosshair + HUD (visible during a run) -->
     <div id="hud" class="hidden" aria-hidden="true">
       <div id="crosshair"></div>
+      <div id="scope" class="hidden"><div class="scope-h"></div><div class="scope-v"></div><div class="scope-dot"></div></div>
       <div id="hitmarker"></div>
+      <div id="hud-headshot">HEADSHOT</div>
+      <div id="hud-reload" class="hidden">YENİDEN DOLDURULUYOR</div>
+      <div class="hud-ammo"><span id="hud-ammo">30</span><span id="hud-ammo-mag">/ 30</span><div id="hud-weapon"></div></div>
       <div class="hud-top">
         <div class="hud-stat"><span class="hud-label">SÜRE</span><span id="hud-time">60.0</span></div>
         <div class="hud-stat hud-center"><span class="hud-label">SKOR</span><span id="hud-score">0</span></div>
@@ -40,6 +44,11 @@
 
         <section class="modes" id="mode-list"></section>
 
+        <section class="loadout">
+          <div><h4>SİLAH</h4><div class="picker weapons" id="weapon-list"></div></div>
+          <div><h4>HEDEF</h4><div class="picker targets" id="target-list"></div></div>
+        </section>
+
         <div class="menu-actions">
           <button id="btn-play" class="btn btn-primary">OYNA <kbd>Space</kbd></button>
           <button id="btn-settings" class="btn">AYARLAR</button>
@@ -48,7 +57,7 @@
 
         <footer class="menu-foot">
           <span id="sentinel-badge" class="badge badge-ok">SENTINEL · aktif</span>
-          <span class="muted">Tıkla → imleç kilitlenir · ESC → menü</span>
+          <span class="muted">Sol tık ateş · Sağ tık nişan · R doldur · ESC menü</span>
         </footer>
       </div>
     </div>
@@ -162,7 +171,7 @@
         <div class="panel-body">
           <div class="tabs" id="board-tabs"></div>
           <table class="board-table">
-            <thead><tr><th>#</th><th>Skor</th><th>İsabet</th><th>Tepki</th><th>Tarih</th><th>Doğrulama</th></tr></thead>
+            <thead><tr><th>#</th><th>Skor</th><th>Silah</th><th>Hedef</th><th>İsabet</th><th>Tarih</th><th>Doğrulama</th></tr></thead>
             <tbody id="board-body"></tbody>
           </table>
           <p class="hint">Skorlar bu cihazda saklanır ve Sentinel tarafından imzalanır. İmzası bozulan kayıtlar <b>geçersiz</b> görünür.</p>
@@ -187,7 +196,10 @@
           <div><span class="hud-label">VURUŞ / ISKA</span><b id="res-hits">0 / 0</b></div>
           <div><span class="hud-label">ORT. TEPKİ</span><b id="res-react">— ms</b></div>
           <div><span class="hud-label">EN İYİ SERİ</span><b id="res-streak">0</b></div>
+          <div><span class="hud-label">HEADSHOT</span><b id="res-hs">—</b></div>
           <div><span class="hud-label">KPS</span><b id="res-kps">0.0</b></div>
+          <div><span class="hud-label">HASAR</span><b id="res-dmg">0</b></div>
+          <div><span class="hud-label">SİLAH</span><b id="res-weapon">—</b></div>
         </div>
         <div id="res-best" class="hint"></div>
         <div class="panel-foot">

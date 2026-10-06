@@ -10,7 +10,8 @@ export class Forensics {
     this.mode = mode;
     this.moves = []; // { t, dx, dy }
     this.clicks = []; // { t, yaw, pitch }
-    this.hits = []; // { t, reaction, errRatio, jumpCounts, preWindowEvents, approachRatio }
+    this.hits = []; // { t, reaction, errRatio, maxDeg, events, jumpShare, approachRatio, dwell, zone }
+    this.sprays = []; // { inputPitch, inputYaw, recoilPitch, recoilYaw, index, auto }
     this.untrusted = 0;
     this.trackOn = 0;
     this.trackTotal = 0;
@@ -28,7 +29,12 @@ export class Forensics {
 
   // Called right after a kill is registered. `aimErr` is the angular distance
   // between the ray and target centre (radians); `angR` is the target's angular radius.
-  hit(t, reaction, aimErr, angR, degPerCount) {
+  spray(sample) {
+    this.sprays.push(sample);
+    if (this.sprays.length > 4000) this.sprays.splice(0, 1000);
+  }
+
+  hit(t, reaction, aimErr, angR, degPerCount, dwell = null, zone = null) {
     const win = this.moves.filter((m) => m.t >= t - 160 && m.t <= t);
     let maxMag = 0, lastMag = 0, sumMag = 0;
     for (const m of win) {
@@ -47,6 +53,7 @@ export class Forensics {
       events: win.length,
       jumpShare,
       approachRatio: maxMag > 0 ? lastMag / maxMag : 0,
+      dwell, zone,
     });
   }
 
@@ -120,7 +127,34 @@ export class Forensics {
       if (cv < 0.01) push('metronomic-input', 'warn', `olay aralığı CV ${cv.toFixed(4)}`);
     }
 
-    // 6. Tracking: nobody stays glued to a randomly turning target.
+    // 6. Triggerbot: the shot lands almost the instant the crosshair enters a target.
+    const dwells = hits.map((h) => h.dwell).filter((d) => d != null && d >= 0);
+    if (dwells.length >= 10) {
+      const med = median(dwells);
+      const instant = dwells.filter((d) => d < 45).length / dwells.length;
+      if (med < 35 && instant > 0.7) push('triggerbot', 'fatal', `hedefe giriş→atış medyan ${Math.round(med)} ms, %${Math.round(instant * 100)} < 45 ms`);
+      else if (med < 60 && instant > 0.45) push('trigger-suspicious', 'warn', `hedefe giriş→atış medyan ${Math.round(med)} ms`);
+    }
+
+    // 7. Headshot ratio: humans do not land 90%+ heads over many kills.
+    const zoned = hits.filter((h) => h.zone);
+    if (zoned.length >= 15) {
+      const heads = zoned.filter((h) => h.zone === 'head').length / zoned.length;
+      if (heads > 0.92) push('head-lock', 'fatal', `vuruşların %${Math.round(heads * 100)}'i kafa`);
+      else if (heads > 0.8) push('head-heavy', 'warn', `vuruşların %${Math.round(heads * 100)}'i kafa`);
+    }
+
+    // 8. Recoil script: input between consecutive auto shots cancels the recoil too exactly.
+    const sp = this.sprays.filter((x) => x.auto && x.index >= 2);
+    if (sp.length >= 24) {
+      const resid = sp.map((x) => Math.hypot(x.inputPitch + x.recoilPitch, x.inputYaw + x.recoilYaw));
+      const med = median(resid);
+      const tight = resid.filter((r) => r < 0.08).length / resid.length;
+      if (med < 0.06 && tight > 0.8) push('recoil-script', 'fatal', `geri tepme telafisi medyan sapma ${med.toFixed(3)}°`);
+      else if (med < 0.15 && tight > 0.5) push('recoil-assist', 'warn', `geri tepme telafisi medyan sapma ${med.toFixed(3)}°`);
+    }
+
+    // 9. Tracking: nobody stays glued to a randomly turning target.
     if (this.mode.kind === 'tracking' && this.trackTotal > 20) {
       const r = this.trackOn / this.trackTotal;
       if (r > 0.985) push('perfect-tracking', 'fatal', `hedefte kalma %${(r * 100).toFixed(1)}`);

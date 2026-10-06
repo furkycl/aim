@@ -27,10 +27,14 @@ export class Leaderboard {
     for (const mode of Object.keys(this.data)) for (const r of this.data[mode]) this.verified[r.id] = await this.signer.verify(r);
   }
 
-  best(modeId) {
+  best(modeId, styleId = null, weaponId = null) {
     const list = this.data[modeId] || [];
     let b = 0;
-    for (const r of list) if (this.verified[r.id] !== false && r.status !== 'invalid' && r.score > b) b = r.score;
+    for (const r of list) {
+      if (styleId && (r.style || 'sphere') !== styleId) continue;
+      if (weaponId && r.weapon && r.weapon !== weaponId) continue;
+      if (this.verified[r.id] !== false && r.status !== 'invalid' && r.score > b) b = r.score;
+    }
     return b;
   }
 
@@ -39,14 +43,14 @@ export class Leaderboard {
     const v = s.verdict;
     if (v.status === 'invalid') return false;
     const rec = {
-      id: v.nonce, mode: modeId, score: s.score, acc: Math.round(s.accuracy * 1000) / 1000,
+      id: v.nonce, mode: modeId, style: s.style || 'sphere', weapon: s.weapon || null, score: s.score, acc: Math.round(s.accuracy * 1000) / 1000,
       react: s.avgReaction ? Math.round(s.avgReaction * 1000) : null,
       date: Date.now(), status: v.status, seed: s.seed, sv: v.version,
     };
     const list = this.data[modeId] || (this.data[modeId] = []);
     list.push(rec);
     list.sort((a, b) => b.score - a.score);
-    list.splice(MAX);
+    list.splice(MAX * 3);
     this.verified[rec.id] = true;
     this._write();
     this.signer.sign(rec).then((signed) => {
@@ -70,14 +74,14 @@ export class Leaderboard {
     body.innerHTML = '';
     const list = this.data[this.activeMode] || [];
     if (!list.length) {
-      body.innerHTML = '<tr><td colspan="6" class="board-empty">Henüz kayıt yok.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="board-empty">Henüz kayıt yok.</td></tr>';
       return;
     }
-    list.forEach((r, i) => {
+    list.slice(0, 15).forEach((r, i) => {
       const tr = document.createElement('tr');
       const ok = this.verified[r.id] !== false;
       const label = !ok ? '<span class="bad">İMZA BOZUK</span>' : r.status === 'verified' ? '<span class="ok">DOĞRULANDI</span>' : '<span style="color:#ffe600">DOĞRULANAMADI</span>';
-      tr.innerHTML = `<td>${i + 1}</td><td>${r.score}</td><td>${Math.round(r.acc * 100)}%</td><td>${r.react ? r.react + ' ms' : '—'}</td><td>${new Date(r.date).toLocaleDateString('tr-TR')}</td><td>${label}</td>`;
+      tr.innerHTML = `<td>${i + 1}</td><td>${r.score}</td><td>${(r.weapon || '—').toUpperCase()}</td><td>${(r.style || 'sphere').toUpperCase()}</td><td>${Math.round(r.acc * 100)}%</td><td>${new Date(r.date).toLocaleDateString('tr-TR')}</td><td>${label}</td>`;
       body.appendChild(tr);
     });
   }

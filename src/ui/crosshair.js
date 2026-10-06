@@ -4,18 +4,19 @@ export function renderCrosshair(el, c) {
   const outline = c.outline ? `0 0 0 1px rgba(0,0,0,0.85)` : 'none';
   const base = `position:absolute;background:${color};box-shadow:${outline};`;
   const parts = [];
-  const line = (x, y, w, h) =>
-    parts.push(`<i style="${base}left:${x}px;top:${y}px;width:${w}px;height:${h}px"></i>`);
+  // Lines are offset by the dynamic spread gap (--spread) through CSS transforms.
+  const line = (x, y, w, h, dir) =>
+    parts.push(`<i class="xh-${dir}" style="${base}left:${x}px;top:${y}px;width:${w}px;height:${h}px"></i>`);
   const dot = (r) =>
     parts.push(`<i style="${base}left:${-r}px;top:${-r}px;width:${r * 2}px;height:${r * 2}px;border-radius:50%"></i>`);
 
   const has = { cross: c.style === 'cross' || c.style === 'crossdot' || c.style === 'tee', dot: c.style === 'dot' || c.style === 'crossdot' };
 
   if (has.cross) {
-    if (c.style !== 'tee') line(-th / 2, -(gap + size), th, size); // top
-    line(-th / 2, gap, th, size); // bottom
-    line(-(gap + size), -th / 2, size, th); // left
-    line(gap, -th / 2, size, th); // right
+    if (c.style !== 'tee') line(-th / 2, -(gap + size), th, size, 'up'); // top
+    line(-th / 2, gap, th, size, 'down'); // bottom
+    line(-(gap + size), -th / 2, size, th, 'left'); // left
+    line(gap, -th / 2, size, th, 'right'); // right
   }
   if (has.dot) dot(Math.max(1, th / 2 + 0.5));
   if (c.style === 'circle') {

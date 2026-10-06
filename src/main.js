@@ -8,6 +8,8 @@ import { Game, State } from './core/game.js';
 import { SceneView } from './render/scene.js';
 import { Effects } from './render/effects.js';
 import { Sfx } from './audio/sfx.js';
+import { GunAudio } from './audio/guns.js';
+import { ViewModel } from './render/viewmodel.js';
 import { Hud, toast } from './ui/hud.js';
 import { Menu } from './ui/menu.js';
 import { SettingsPanel } from './ui/settings.js';
@@ -21,8 +23,10 @@ import { Leaderboard } from './data/leaderboard.js';
   const input = new Input(canvas, settings, sentinel);
   const effects = new Effects(view, settings);
   const audio = new Sfx(settings);
+  const guns = new GunAudio(audio, settings);
+  const viewmodel = new ViewModel(view, settings);
   const hud = new Hud();
-  const game = new Game({ view, input, settings, sentinel, effects, audio, hud });
+  const game = new Game({ view, input, settings, sentinel, effects, audio, guns, hud, viewmodel });
   const board = new Leaderboard(sentinel.signer);
   const menu = new Menu({ game, board, audio, sentinel });
   new SettingsPanel(settings, hud, audio);
@@ -45,7 +49,7 @@ import { Leaderboard } from './data/leaderboard.js';
     }
     if (k === ' ' && (menu.current === 'menu' || menu.current === 'results')) { e.preventDefault(); menu.play(); }
     if ((k === 'r' || k === 'R') && (game.state === State.ENDED || game.state === State.PAUSED)) menu.play();
-    if ((k === 'r' || k === 'R') && game.state === State.RUNNING) { game.start(game.mode); }
+    if ((k === 'r' || k === 'R') && game.state === State.RUNNING) game.reload();
   });
 
   // Main loop
@@ -58,10 +62,13 @@ import { Leaderboard } from './data/leaderboard.js';
     if (dt > 0.1) dt = 0.1; // tab switch / stall: never let a frame "catch up" the timer
     const t = now / 1000;
 
-    view.setLook(input.yaw, input.pitch);
     game.update(dt, t);
+    view.setLook(game.lookYaw, game.lookPitch, game.zoom);
     sentinel.tick(dt);
     effects.update(dt, view.camera);
+    const scoped = game.zoom > 1;
+    viewmodel.root.visible = !scoped && game.state !== State.MENU && game.state !== State.ENDED;
+    viewmodel.update(dt, game.lookYaw, game.lookPitch, { ads: !!(game.weapon && game.weapon.ads) });
     view.render(dt, t);
 
     if (settings.data.video.fps) {
@@ -83,7 +90,7 @@ import { Leaderboard } from './data/leaderboard.js';
   // Dev-only test handle. `import.meta.env.DEV` is false in production builds,
   // so this block is removed entirely from dist/ (scripts/check.mjs verifies it).
   if (import.meta.env.DEV) {
-    window.__flick = { game, view, input, settings, sentinel, board, menu };
+    window.__flick = { game, view, input, settings, sentinel, board, menu, viewmodel };
   }
 
   console.log('%cFLICK%c — Sentinel v' + sentinel.version + ' aktif. Hile tespitinde koşu geçersiz sayılır.', 'color:#00f0ff;font-weight:bold;font-size:16px', 'color:#7a8396');
